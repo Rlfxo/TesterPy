@@ -1,4 +1,4 @@
-# SerialPy
+# Tester
 - 기본 구조 구현:
 메인 윈도우 (MainWindow)
 운영 센터 (OperationsCenterDialog)
