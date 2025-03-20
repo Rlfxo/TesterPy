@@ -1,9 +1,10 @@
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, 
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QLabel, QComboBox, 
-                             QTextEdit, QMessageBox, QTableWidget,
-                             QTableWidgetItem, QHeaderView)
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QIcon, QPixmap
+                             QTableWidget, QTableWidgetItem, QHeaderView,
+                             QGroupBox, QGridLayout)
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QIcon
+from ...utils.test_manager import TestManager
 import os
 import sys
 
@@ -17,75 +18,117 @@ def resource_path(relative_path):
 class QualityCenterDialog(QDialog):
     def __init__(self):
         super().__init__()
+        self.test_manager = TestManager()
         self.initUI()
 
     def initUI(self):
-        self.setWindowTitle('Quality Center')
+        self.setWindowTitle('품질 관리 센터')
         self.setWindowIcon(QIcon(resource_path('img/icon.png')))
-        self.setGeometry(100, 100, 1000, 800)
+        self.setGeometry(100, 100, 800, 600)
 
         # 메인 레이아웃
         layout = QVBoxLayout()
         self.setLayout(layout)
 
-        # 상단 컨트롤 영역
-        control_layout = QHBoxLayout()
+        # 테스트 선택
+        test_layout = QHBoxLayout()
+        test_layout.addWidget(QLabel('테스트 항목:'))
         
-        # 테스트 항목 선택 콤보박스
         self.test_combo = QComboBox()
-        self.test_combo.addItems(['전체 테스트', '전기적 특성', '기계적 특성', '환경 테스트'])
-        control_layout.addWidget(QLabel('테스트 항목:'))
-        control_layout.addWidget(self.test_combo)
-
-        # 시작 버튼
-        self.start_btn = QPushButton('테스트 시작')
-        self.start_btn.clicked.connect(self.start_test)
-        control_layout.addWidget(self.start_btn)
-
-        # 결과 저장 버튼
-        save_btn = QPushButton('결과 저장')
-        save_btn.clicked.connect(self.save_results)
-        control_layout.addWidget(save_btn)
-
-        layout.addLayout(control_layout)
+        self.test_combo.addItems(['전압', '전류', '온도', '저항'])
+        test_layout.addWidget(self.test_combo)
+        
+        layout.addLayout(test_layout)
 
         # 테스트 결과 테이블
         self.result_table = QTableWidget()
         self.result_table.setColumnCount(5)
-        self.result_table.setHorizontalHeaderLabels(['테스트 항목', '측정값', '기준값', '단위', '결과'])
+        self.result_table.setHorizontalHeaderLabels(['테스트 항목', '측정값', '기준값', '오차', '결과'])
         self.result_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         layout.addWidget(self.result_table)
 
-        # 로그 영역
-        self.log_text = QTextEdit()
-        self.log_text.setReadOnly(True)
-        self.log_text.setMaximumHeight(150)
-        layout.addWidget(self.log_text)
-
-        # 하단 버튼 영역
+        # 버튼 레이아웃
         button_layout = QHBoxLayout()
         
-        # 리포트 생성 버튼
-        report_btn = QPushButton('리포트 생성')
-        report_btn.clicked.connect(self.generate_report)
-        button_layout.addWidget(report_btn)
-
-        # 닫기 버튼
-        close_btn = QPushButton('닫기')
-        close_btn.clicked.connect(self.close)
-        button_layout.addWidget(close_btn)
-
+        self.start_btn = QPushButton('테스트 시작')
+        self.start_btn.clicked.connect(self.start_test)
+        button_layout.addWidget(self.start_btn)
+        
+        self.save_btn = QPushButton('결과 저장')
+        self.save_btn.clicked.connect(self.save_results)
+        self.save_btn.setEnabled(False)
+        button_layout.addWidget(self.save_btn)
+        
+        self.history_btn = QPushButton('테스트 이력')
+        self.history_btn.clicked.connect(self.show_history)
+        button_layout.addWidget(self.history_btn)
+        
+        self.close_btn = QPushButton('닫기')
+        self.close_btn.clicked.connect(self.close)
+        button_layout.addWidget(self.close_btn)
+        
         layout.addLayout(button_layout)
 
+        # 타이머 설정
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_test)
+        self.current_test_index = 0
+
     def start_test(self):
-        # TODO: 실제 테스트 시작 로직 구현
-        self.log_text.append('테스트가 시작되었습니다.')
+        """테스트 시작"""
         self.start_btn.setEnabled(False)
+        self.save_btn.setEnabled(False)
+        self.current_test_index = 0
+        self.result_table.setRowCount(0)
+        self.timer.start(1000)  # 1초마다 업데이트
+
+    def update_test(self):
+        """테스트 진행 업데이트"""
+        test_items = ['전압', '전류', '온도', '저항']
+        if self.current_test_index >= len(test_items):
+            self.timer.stop()
+            self.start_btn.setEnabled(True)
+            self.save_btn.setEnabled(True)
+            return
+
+        # 테스트 결과 생성
+        test_item = test_items[self.current_test_index]
+        result = self.test_manager.run_test(test_item)
+
+        # 결과 테이블에 추가
+        row = self.result_table.rowCount()
+        self.result_table.insertRow(row)
+        self.result_table.setItem(row, 0, QTableWidgetItem(test_item))
+        self.result_table.setItem(row, 1, QTableWidgetItem(f"{result['measured_value']:.2f}"))
+        self.result_table.setItem(row, 2, QTableWidgetItem(f"{result['reference_value']:.2f}"))
+        self.result_table.setItem(row, 3, QTableWidgetItem(f"{result['error']:.2f}%"))
+        self.result_table.setItem(row, 4, QTableWidgetItem(result['result']))
+
+        self.current_test_index += 1
 
     def save_results(self):
-        # TODO: 실제 결과 저장 로직 구현
-        self.log_text.append('테스트 결과가 저장되었습니다.')
+        """테스트 결과 저장"""
+        results = []
+        for row in range(self.result_table.rowCount()):
+            result = {
+                'test_item': self.result_table.item(row, 0).text(),
+                'measured_value': float(self.result_table.item(row, 1).text()),
+                'reference_value': float(self.result_table.item(row, 2).text()),
+                'error': float(self.result_table.item(row, 3).text().replace('%', '')),
+                'result': self.result_table.item(row, 4).text()
+            }
+            results.append(result)
+        
+        self.test_manager.save_test_results(results)
+        self.save_btn.setEnabled(False)
 
-    def generate_report(self):
-        # TODO: 실제 리포트 생성 로직 구현
-        self.log_text.append('테스트 리포트가 생성되었습니다.') 
+    def show_history(self):
+        """테스트 이력 표시"""
+        from .test_history_dialog import TestHistoryDialog
+        dialog = TestHistoryDialog()
+        dialog.exec_()
+
+    def closeEvent(self, event):
+        """다이얼로그 종료 시 처리"""
+        self.timer.stop()
+        event.accept() 
