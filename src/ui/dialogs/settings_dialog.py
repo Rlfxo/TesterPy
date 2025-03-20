@@ -1,9 +1,10 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QLabel, QLineEdit, 
                              QComboBox, QGroupBox, QFormLayout,
-                             QMessageBox)
+                             QMessageBox, QFileDialog)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
+from ...utils.settings_manager import SettingsManager
 import os
 import sys
 
@@ -17,6 +18,7 @@ def resource_path(relative_path):
 class SettingsDialog(QDialog):
     def __init__(self):
         super().__init__()
+        self.settings_manager = SettingsManager()
         self.initUI()
 
     def initUI(self):
@@ -65,9 +67,16 @@ class SettingsDialog(QDialog):
         file_layout = QFormLayout()
         
         # 저장 경로
+        path_layout = QHBoxLayout()
         self.save_path_edit = QLineEdit()
         self.save_path_edit.setReadOnly(True)
-        file_layout.addRow('저장 경로:', self.save_path_edit)
+        path_layout.addWidget(self.save_path_edit)
+        
+        browse_btn = QPushButton('찾아보기')
+        browse_btn.clicked.connect(self.browse_save_path)
+        path_layout.addWidget(browse_btn)
+        
+        file_layout.addRow('저장 경로:', path_layout)
         
         # 파일 형식
         self.file_format_combo = QComboBox()
@@ -96,10 +105,45 @@ class SettingsDialog(QDialog):
         self.load_settings()
 
     def load_settings(self):
-        # TODO: 설정 파일에서 현재 설정 로드
-        pass
+        # 시리얼 설정 로드
+        serial_settings = self.settings_manager.get_serial_settings()
+        self.port_combo.setCurrentText(serial_settings['port'])
+        self.baud_combo.setCurrentText(serial_settings['baud_rate'])
+        self.data_bits_combo.setCurrentText(serial_settings['data_bits'])
+        self.stop_bits_combo.setCurrentText(serial_settings['stop_bits'])
+        self.parity_combo.setCurrentText(serial_settings['parity'])
+
+        # 파일 설정 로드
+        file_settings = self.settings_manager.get_file_settings()
+        self.save_path_edit.setText(file_settings['save_path'])
+        self.file_format_combo.setCurrentText(file_settings['format'])
+
+    def browse_save_path(self):
+        dir_path = QFileDialog.getExistingDirectory(
+            self,
+            "저장 경로 선택",
+            self.save_path_edit.text()
+        )
+        if dir_path:
+            self.save_path_edit.setText(dir_path)
 
     def save_settings(self):
-        # TODO: 설정을 파일로 저장
+        # 시리얼 설정 저장
+        serial_settings = {
+            'port': self.port_combo.currentText(),
+            'baud_rate': self.baud_combo.currentText(),
+            'data_bits': self.data_bits_combo.currentText(),
+            'stop_bits': self.stop_bits_combo.currentText(),
+            'parity': self.parity_combo.currentText()
+        }
+        self.settings_manager.update_serial_settings(serial_settings)
+
+        # 파일 설정 저장
+        file_settings = {
+            'save_path': self.save_path_edit.text(),
+            'format': self.file_format_combo.currentText()
+        }
+        self.settings_manager.update_file_settings(file_settings)
+
         QMessageBox.information(self, '알림', '설정이 저장되었습니다.')
         self.close() 
